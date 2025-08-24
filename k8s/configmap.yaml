@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: book-scraper-config
+  namespace: book-scraper
+  labels:
+    app: book-scraper
+data:
+  # Application configuration
+  APP_NAME: "book-scraper"
+  APP_VERSION: "0.1.0"
+  DEBUG: "false"
+  
+  # Server configuration
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  WORKERS: "4"
+  
+  # Scraping configuration
+  MAX_CONCURRENT_REQUESTS: "100"
+  REQUEST_TIMEOUT: "30"
+  RATE_LIMIT_PER_SECOND: "10"
+  
+  # Retry configuration
+  MAX_RETRIES: "3"
+  RETRY_DELAY: "1.0"
+  
+  # Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  
+  # Book sources
+  ENABLED_SOURCES: "goodreads,amazon,google_books,openlibrary"
+  
+  # Database configuration (abstracted for now)
+  DATABASE_TYPE: "postgresql"
+  
+  # Redis configuration
+  REDIS_URL: "redis://book-scraper-redis:6379" 
