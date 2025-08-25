@@ -185,6 +185,33 @@ curl -X POST "http://localhost:8000/api/v1/scrape" \
   }'
 ```
 
+### API Request Models
+
+**Single Book Scraping:**
+```json
+{
+  "url": "https://example.com/book/123",
+  "source": "goodreads",
+  "priority": 5
+}
+```
+
+**Batch Scraping:**
+```json
+{
+  "urls": [
+    "https://example.com/book/123",
+    "https://example.com/book/456"
+  ],
+  "source": "goodreads",
+  "priority": 3,
+  "metadata": {
+    "batch_id": "batch_001",
+    "user_id": "user_123"
+  }
+}
+```
+
 ## 🚀 Performance Features
 
 ### Async Architecture

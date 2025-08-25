@@ -119,9 +119,13 @@ class ScraperEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 self.logger.error(f"Task {i} failed with exception: {result}")
+                task = tasks_to_process[i]
+                job_id = f"{task.source.value}_{int(time.time() * 1000)}"
                 failed_result = ScrapingResult(
+                    job_id=job_id,
+                    source=task.source.value,
                     status=ResultStatus.FAILED,
-                    url_scraped=tasks_to_process[i].url,
+                    url_scraped=task.url,
                     error_message=str(result),
                     error_code=type(result).__name__
                 )
@@ -134,6 +138,7 @@ class ScraperEngine:
     async def _process_single_task(self, task: ScrapingTask) -> ScrapingResult:
         """Process a single scraping task"""
         start_time = time.time()
+        job_id = f"{task.source.value}_{int(start_time * 1000)}"
         
         try:
             # Rate limiting
@@ -142,7 +147,7 @@ class ScraperEngine:
                 await asyncio.sleep(delay)
             
             # Perform HTTP request
-            result = await self.http_client.get(task.url)
+            result = await self.http_client.get(task.url, job_id=job_id, source=task.source.value)
             
             # Update metrics
             self.total_requests += 1
@@ -151,18 +156,23 @@ class ScraperEngine:
             else:
                 self.failed_requests += 1
             
+            # Set required fields for the result
+            result.job_id = job_id
+            result.source = task.source.value
+            
             # Parse HTML and extract book data
             if result.status == ResultStatus.SUCCESS and result.raw_html:
-                book_data = await self._extract_book_data(result.raw_html, task.url, task.source)
-                if book_data:
-                    result.book = book_data
-                    result.status = ResultStatus.SUCCESS
-                else:
+                try:
+                    book_data = await self._extract_book_data(result.raw_html, task.url, task.source)
+                    if book_data:
+                        result.book = book_data
+                        result.status = ResultStatus.SUCCESS
+                    else:
+                        result.status = ResultStatus.PARTIAL
+                except Exception as e:
+                    self.logger.error(f"Book data extraction failed for {task.url}: {e}")
                     result.status = ResultStatus.PARTIAL
-            
-            # Update result metadata
-            result.source = task.source.value
-            result.job_id = f"task_{int(start_time * 1000)}"
+                    result.error_message = f"Book data extraction failed: {str(e)}"
             
             # Call callback if provided
             if task.callback:
@@ -178,31 +188,41 @@ class ScraperEngine:
             self.failed_requests += 1
             
             return ScrapingResult(
+                job_id=job_id,
+                source=task.source.value,
                 status=ResultStatus.FAILED,
                 url_scraped=task.url,
-                source=task.source.value,
                 error_message=str(e),
-                error_code=type(e).__name__,
-                job_id=f"task_{int(start_time * 1000)}"
+                error_code=type(e).__name__
             )
     
     async def _extract_book_data(self, html: str, url: str, source: BookSource) -> Optional[Book]:
         """Extract book data from HTML content"""
         try:
+            self.logger.debug(f"Starting HTML parsing for {url}")
             parser = HTMLParser(html, url)
+            
+            # Log parser availability
+            parser_stats = parser.get_parser_stats()
+            self.logger.debug(f"Parser stats: {parser_stats}")
             
             # Extract structured data first (most reliable)
             structured_data = parser.extract_structured_data()
             if structured_data:
+                self.logger.debug(f"Found {len(structured_data)} structured data items")
                 book = await self._parse_structured_data(structured_data, source)
                 if book:
+                    self.logger.debug(f"Successfully parsed structured data for {url}")
                     return book
             
             # Fallback to HTML parsing
+            self.logger.debug(f"Falling back to HTML parsing for {url}")
             book = await self._parse_html_content(parser, source)
             if book:
+                self.logger.debug(f"Successfully parsed HTML content for {url}")
                 return book
             
+            self.logger.warning(f"Failed to extract book data from {url}")
             return None
             
         except Exception as e:
@@ -257,33 +277,50 @@ class ScraperEngine:
             if not title:
                 title_elem = parser.find('h1') or parser.find('h2')
                 if title_elem:
-                    title = parser.get_text(title_elem)
+                    try:
+                        title = parser.get_text(title_elem)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to extract title text: {e}")
+                        title = ""
             
             # Extract authors
             authors = []
             author_elements = parser.select('[class*="author"], [class*="Author"], .author, .Author')
             for elem in author_elements:
-                author_text = parser.get_text(elem)
-                if author_text and len(author_text) < 100:  # Reasonable author name length
-                    authors.append(author_text)
+                try:
+                    author_text = parser.get_text(elem)
+                    if author_text and len(author_text) < 100:  # Reasonable author name length
+                        authors.append(author_text)
+                except Exception as e:
+                    self.logger.debug(f"Failed to extract author text: {e}")
+                    continue
             
             # Extract description
             description = ""
             desc_elements = parser.select('[class*="description"], [class*="Description"], .description, .Description')
             for elem in desc_elements:
-                desc_text = parser.get_text(elem)
-                if desc_text and len(desc_text) > 20:  # Reasonable description length
-                    description = desc_text
-                    break
+                try:
+                    desc_text = parser.get_text(elem)
+                    if desc_text and len(desc_text) > 20:  # Reasonable description length
+                        description = desc_text
+                        break
+                except Exception as e:
+                    self.logger.debug(f"Failed to extract description text: {e}")
+                    continue
             
             # Extract cover image
             cover_image = ""
             img_elements = parser.select('img[class*="cover"], img[class*="Cover"], .cover img, .Cover img')
             for img in img_elements:
-                src = parser.get_attribute(img, 'src')
-                if src and ('cover' in src.lower() or 'cover' in parser.get_attribute(img, 'alt', '').lower()):
-                    cover_image = parser.normalize_url(src)
-                    break
+                try:
+                    src = parser.get_attribute(img, 'src')
+                    alt = parser.get_attribute(img, 'alt') or ''
+                    if src and ('cover' in src.lower() or 'cover' in alt.lower()):
+                        cover_image = parser.normalize_url(src)
+                        break
+                except Exception as e:
+                    self.logger.debug(f"Failed to extract image attributes: {e}")
+                    continue
             
             # Create book metadata
             book_metadata = BookMetadata(

@@ -1,7 +1,7 @@
 """
 Scraping result models for tracking scraping outcomes
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -44,7 +44,7 @@ class ScrapingResult(BaseModel):
     ip_address: Optional[str] = Field(None, description="IP address used for scraping")
     
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="When this result was created")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When this result was created")
     processed_at: Optional[datetime] = Field(None, description="When this result was processed")
     
     # Quality metrics

@@ -1,10 +1,20 @@
 """
-Scraping job models for managing book scraping tasks
+Scraping job models for managing scraping operations
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from enum import Enum
+
+from .book import BookSource
+
+
+class JobType(str, Enum):
+    """Job type enumeration"""
+    SINGLE = "single"
+    BATCH = "batch"
+    SCHEDULED = "scheduled"
+    RECURRING = "recurring"
 
 
 class JobStatus(str, Enum):
@@ -14,16 +24,7 @@ class JobStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-    RETRYING = "retrying"
-
-
-class JobType(str, Enum):
-    """Job type enumeration"""
-    SINGLE_BOOK = "single_book"
-    BATCH_SCRAPE = "batch_scrape"
-    LIST_SCRAPE = "list_scrape"
-    UPDATE_EXISTING = "update_existing"
-    FULL_SYNC = "full_sync"
+    PAUSED = "paused"
 
 
 class ScrapingJob(BaseModel):
@@ -32,34 +33,40 @@ class ScrapingJob(BaseModel):
     
     # Job configuration
     job_type: JobType = Field(..., description="Type of scraping job")
-    source: str = Field(..., description="Source to scrape from")
+    source: BookSource = Field(..., description="Source to scrape from")
+    urls: List[str] = Field(..., description="URLs to scrape")
     
-    # Job parameters
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Job-specific parameters")
-    priority: int = Field(default=5, ge=1, le=10, description="Job priority (1=highest, 10=lowest)")
+    # Job settings
+    priority: int = Field(5, ge=1, le=10, description="Job priority (1=highest, 10=lowest)")
+    max_retries: int = Field(3, ge=0, le=10, description="Maximum number of retry attempts")
+    timeout_seconds: int = Field(30, ge=5, le=300, description="Request timeout in seconds")
     
-    # Status tracking
-    status: JobStatus = Field(default=JobStatus.PENDING, description="Current job status")
-    progress: float = Field(default=0.0, ge=0.0, le=100.0, description="Job progress percentage")
+    # Job state
+    status: JobStatus = Field(JobStatus.PENDING, description="Current job status")
+    progress: float = Field(0.0, ge=0.0, le=1.0, description="Job progress (0.0 to 1.0)")
     
-    # Timing
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="When the job was created")
-    started_at: Optional[datetime] = Field(None, description="When the job started running")
-    completed_at: Optional[datetime] = Field(None, description="When the job completed")
-    
-    # Results and errors
-    result_count: int = Field(default=0, description="Number of results produced")
-    error_count: int = Field(default=0, description="Number of errors encountered")
-    errors: List[str] = Field(default_factory=list, description="List of error messages")
-    
-    # Worker information
-    worker_id: Optional[str] = Field(None, description="ID of the worker processing this job")
-    retry_count: int = Field(default=0, description="Number of retry attempts")
-    max_retries: int = Field(default=3, description="Maximum retry attempts")
+    # Results
+    completed_count: int = Field(0, ge=0, description="Number of successfully completed tasks")
+    failed_count: int = Field(0, ge=0, description="Number of failed tasks")
+    total_count: int = Field(0, ge=0, description="Total number of tasks")
     
     # Metadata
-    tags: List[str] = Field(default_factory=list, description="Tags for categorizing jobs")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional job metadata")
+    tags: List[str] = Field(default_factory=list, description="Job tags for organization")
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When the job was created")
+    started_at: Optional[datetime] = Field(None, description="When the job started processing")
+    completed_at: Optional[datetime] = Field(None, description="When the job completed")
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When the job was last updated")
+    
+    # Error tracking
+    last_error: Optional[str] = Field(None, description="Last error message")
+    error_count: int = Field(0, ge=0, description="Number of errors encountered")
+    
+    # Performance metrics
+    total_duration_seconds: Optional[float] = Field(None, description="Total job duration in seconds")
+    average_response_time_ms: Optional[float] = Field(None, description="Average response time per request")
     
     class Config:
         json_encoders = {

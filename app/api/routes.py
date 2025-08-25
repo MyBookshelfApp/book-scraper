@@ -2,8 +2,8 @@
 API routes for the Book Scraper service
 """
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
-from pydantic import BaseModel, HttpUrl
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from pydantic import BaseModel, HttpUrl, Field
 
 from ..core.scraper_engine import ScraperEngine, ScrapingTask
 from ..models.book import Book, BookSource
@@ -18,7 +18,7 @@ class ScrapeRequest(BaseModel):
     """Request model for scraping operations"""
     urls: List[HttpUrl]
     source: BookSource
-    priority: int = 5
+    priority: int = Field(5, ge=1, le=10, description="Priority from 1 (highest) to 10 (lowest)")
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -35,6 +35,13 @@ class BookSearchRequest(BaseModel):
     query: str
     source: Optional[BookSource] = None
     limit: int = 10
+
+
+class ScrapeSingleRequest(BaseModel):
+    """Request model for single book scraping"""
+    url: HttpUrl
+    source: BookSource
+    priority: int = Field(5, ge=1, le=10, description="Priority from 1 (highest) to 10 (lowest)")
 
 
 @router.post("/scrape", response_model=ScrapeResponse)
@@ -75,17 +82,15 @@ async def scrape_books(
 
 @router.post("/scrape/single", response_model=ScrapeResponse)
 async def scrape_single_book(
-    url: HttpUrl,
-    source: BookSource,
-    priority: int = Query(5, ge=1, le=10),
+    request: ScrapeSingleRequest,
     scraper: ScraperEngine = Depends(get_scraper_engine)
 ):
     """Scrape a single book URL"""
     try:
         task = ScrapingTask(
-            url=str(url),
-            source=source,
-            priority=priority
+            url=str(request.url),
+            source=request.source,
+            priority=request.priority
         )
         
         task_id = await scraper.add_task(task)
@@ -97,7 +102,7 @@ async def scrape_single_book(
             job_id=task_id,
             task_count=1,
             status="started",
-            message=f"Started scraping {url} from {source.value}"
+            message=f"Started scraping {request.url} from {request.source.value}"
         )
     
     except Exception as e:

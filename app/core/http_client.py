@@ -95,18 +95,17 @@ class HTTPClient:
         wait=wait_exponential(multiplier=1, min=settings.retry_delay, max=60),
         retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError, aiohttp.ClientError))
     )
-    async def get(self, url: str, headers: Optional[Dict[str, str]] = None, **kwargs) -> ScrapingResult:
-        """Perform a GET request with retry logic and result tracking"""
+    async def get(self, url: str, headers: Optional[Dict[str, str]] = None, 
+                  job_id: Optional[str] = None, source: Optional[str] = None, **kwargs) -> ScrapingResult:
+        """Perform a GET request"""
         start_time = time.time()
         
-        # Prepare headers
         request_headers = self._default_headers.copy()
         if headers:
             request_headers.update(headers)
         request_headers["User-Agent"] = self._get_random_user_agent()
         
         try:
-            # Use HTTPX for better performance
             response = await self._httpx_client.get(url, headers=request_headers, **kwargs)
             response.raise_for_status()
             
@@ -115,6 +114,8 @@ class HTTPClient:
             data_size = len(content.encode('utf-8'))
             
             return ScrapingResult(
+                job_id=job_id or f"http_{int(start_time * 1000)}",
+                source=source or "unknown",
                 status=ResultStatus.SUCCESS,
                 url_scraped=url,
                 user_agent=request_headers["User-Agent"],
@@ -127,6 +128,8 @@ class HTTPClient:
         except httpx.HTTPStatusError as e:
             response_time = (time.time() - start_time) * 1000
             return ScrapingResult(
+                job_id=job_id or f"http_{int(start_time * 1000)}",
+                source=source or "unknown",
                 status=ResultStatus.FAILED,
                 url_scraped=url,
                 user_agent=request_headers["User-Agent"],
@@ -138,6 +141,8 @@ class HTTPClient:
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
             return ScrapingResult(
+                job_id=job_id or f"http_{int(start_time * 1000)}",
+                source=source or "unknown",
                 status=ResultStatus.FAILED,
                 url_scraped=url,
                 user_agent=request_headers["User-Agent"],
@@ -146,25 +151,32 @@ class HTTPClient:
                 error_code=type(e).__name__
             )
     
-    async def get_batch(self, urls: List[str], max_concurrent: Optional[int] = None) -> List[ScrapingResult]:
+    async def get_batch(self, urls: List[str], max_concurrent: Optional[int] = None,
+                        job_ids: Optional[List[str]] = None, sources: Optional[List[str]] = None) -> List[ScrapingResult]:
         """Perform multiple GET requests concurrently"""
         if max_concurrent is None:
             max_concurrent = min(len(urls), settings.max_concurrent_requests)
         
         semaphore = asyncio.Semaphore(max_concurrent)
         
-        async def _fetch_with_semaphore(url: str) -> ScrapingResult:
+        async def _fetch_with_semaphore(url: str, index: int) -> ScrapingResult:
             async with semaphore:
-                return await self.get(url)
+                job_id = job_ids[index] if job_ids and index < len(job_ids) else None
+                source = sources[index] if sources and index < len(sources) else None
+                return await self.get(url, job_id=job_id, source=source)
         
-        tasks = [_fetch_with_semaphore(url) for url in urls]
+        tasks = [_fetch_with_semaphore(url, i) for i, url in enumerate(urls)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Handle any exceptions that occurred
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
+                job_id = job_ids[i] if job_ids and i < len(job_ids) else None
+                source = sources[i] if sources and i < len(sources) else None
                 processed_results.append(ScrapingResult(
+                    job_id=job_id or f"batch_{int(time.time() * 1000)}_{i}",
+                    source=source or "unknown",
                     status=ResultStatus.FAILED,
                     url_scraped=urls[i],
                     error_message=str(result),
@@ -177,7 +189,8 @@ class HTTPClient:
     
     async def post(self, url: str, data: Optional[Dict[str, Any]] = None, 
                    json_data: Optional[Dict[str, Any]] = None, 
-                   headers: Optional[Dict[str, str]] = None, **kwargs) -> ScrapingResult:
+                   headers: Optional[Dict[str, str]] = None, 
+                   job_id: Optional[str] = None, source: Optional[str] = None, **kwargs) -> ScrapingResult:
         """Perform a POST request"""
         start_time = time.time()
         
@@ -201,6 +214,8 @@ class HTTPClient:
             data_size = len(content.encode('utf-8'))
             
             return ScrapingResult(
+                job_id=job_id or f"post_{int(start_time * 1000)}",
+                source=source or "unknown",
                 status=ResultStatus.SUCCESS,
                 url_scraped=url,
                 user_agent=request_headers["User-Agent"],
@@ -210,9 +225,24 @@ class HTTPClient:
                 extracted_data={"status_code": response.status_code, "headers": dict(response.headers)}
             )
             
+        except httpx.HTTPStatusError as e:
+            response_time = (time.time() - start_time) * 1000
+            return ScrapingResult(
+                job_id=job_id or f"post_{int(start_time * 1000)}",
+                source=source or "unknown",
+                status=ResultStatus.FAILED,
+                url_scraped=url,
+                user_agent=request_headers["User-Agent"],
+                response_time_ms=response_time,
+                error_message=f"HTTP {e.response.status_code}: {e.response.text[:200]}",
+                error_code=f"HTTP_{e.response.status_code}"
+            )
+            
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
             return ScrapingResult(
+                job_id=job_id or f"post_{int(start_time * 1000)}",
+                source=source or "unknown",
                 status=ResultStatus.FAILED,
                 url_scraped=url,
                 user_agent=request_headers["User-Agent"],
