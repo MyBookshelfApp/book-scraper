@@ -77,6 +77,18 @@ A high-performance, scalable book scraping service designed for Kubernetes deplo
    ```
 
 4. **Run with Docker Compose**
+
+   **Option A: Core services only (recommended for development)**
+   ```bash
+   docker-compose -f docker-compose.core.yml up --build
+   ```
+
+   **Option B: Full stack with monitoring**
+   ```bash
+   docker-compose --profile monitoring up --build
+   ```
+
+   **Option C: All services**
    ```bash
    docker-compose up --build
    ```
@@ -84,7 +96,9 @@ A high-performance, scalable book scraping service designed for Kubernetes deplo
 5. **Access the service**
    - API: http://localhost:8000
    - Metrics: http://localhost:9090
-   - Grafana: http://localhost:3000 (admin/admin)
+   - Redis: localhost:6379
+   - Prometheus: http://localhost:9091 (if monitoring enabled)
+   - Grafana: http://localhost:3000 (admin/admin, if monitoring enabled)
 
 ### Production Deployment
 
@@ -207,6 +221,11 @@ curl -X POST "http://localhost:8000/api/v1/scrape" \
 - **Log Levels**: Configurable verbosity
 - **Context Information**: Request IDs, user agents
 
+### Monitoring Stack (Optional)
+- **Prometheus**: Metrics collection and storage
+- **Grafana**: Visualization and dashboards
+- **Pre-configured**: Book scraper dashboard included
+
 ## 🐳 Kubernetes Deployment
 
 ### Components
@@ -286,10 +305,14 @@ book-scraper/
 │   └── main.py           # FastAPI application
 ├── k8s/                   # Kubernetes manifests
 ├── tests/                 # Test suite
+├── monitoring/            # Monitoring configuration
+│   ├── prometheus.yml     # Prometheus config
+│   └── grafana/          # Grafana dashboards & datasources
 ├── Dockerfile             # Multi-stage Docker build
 ├── Dockerfile.simple      # Simple Dockerfile (recommended)
 ├── Dockerfile.alternative # Alternative with better compatibility
-├── docker-compose.yml     # Local development
+├── docker-compose.yml     # Full stack with monitoring
+├── docker-compose.core.yml # Core services only
 ├── deploy.sh              # GKE deployment script
 ├── requirements.txt       # Python dependencies
 └── TROUBLESHOOTING.md     # Common issues and solutions
@@ -336,12 +359,16 @@ book-scraper/
 2. **Package Installation Errors**: Check package names for your base image
 3. **Permission Issues**: Ensure containers run as non-root user
 4. **Memory Constraints**: Increase Docker memory limits
+5. **Volume Mounting**: Check if directories exist and have correct permissions
 
 ### Quick Fixes
 
 ```bash
 # Use simple Dockerfile
 docker build -f Dockerfile.simple -t book-scraper:latest .
+
+# Use core services only
+docker-compose -f docker-compose.core.yml up --build
 
 # Clean Docker environment
 docker system prune -a

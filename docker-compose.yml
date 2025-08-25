@@ -41,13 +41,13 @@ services:
       timeout: 10s
       retries: 3
 
-  # Optional: Add Prometheus for metrics
+  # Optional: Add Prometheus for metrics (comment out if not needed)
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9091:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -57,8 +57,10 @@ services:
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
     restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # Optional: Add Grafana for visualization
+  # Optional: Add Grafana for visualization (comment out if not needed)
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -67,11 +69,13 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     restart: unless-stopped
     depends_on:
       - prometheus
+    profiles:
+      - monitoring
 
 volumes:
   redis_data:

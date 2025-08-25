@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Book Scraper service
+  - job_name: 'book-scraper'
+    static_configs:
+      - targets: ['book-scraper:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Redis (if you want to monitor it)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['book-scraper-redis:6379']
+    # Note: Redis doesn't expose Prometheus metrics by default
+    # You'd need redis_exporter for this to work
+
+alerting:
+  alertmanagers:
+    # - static_configs:
+    #   - targets:
+    #     - alertmanager:9093
