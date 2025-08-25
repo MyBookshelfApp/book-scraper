@@ -90,7 +90,11 @@ A high-performance, scalable book scraping service designed for Kubernetes deplo
 
 1. **Build Docker image**
    ```bash
-   docker build -t book-scraper:latest .
+   # Use the simple Dockerfile to avoid dependency issues
+   docker build -f Dockerfile.simple -t book-scraper:latest .
+   
+   # Or use the alternative for better compatibility
+   docker build -f Dockerfile.alternative -t book-scraper:latest .
    ```
 
 2. **Deploy to GKE**
@@ -263,6 +267,12 @@ pytest tests/integration/
 pytest tests/performance/
 ```
 
+### Manual Testing
+```bash
+# Run the test script
+python test_scraper.py
+```
+
 ## 📚 Development
 
 ### Project Structure
@@ -277,9 +287,12 @@ book-scraper/
 ├── k8s/                   # Kubernetes manifests
 ├── tests/                 # Test suite
 ├── Dockerfile             # Multi-stage Docker build
+├── Dockerfile.simple      # Simple Dockerfile (recommended)
+├── Dockerfile.alternative # Alternative with better compatibility
 ├── docker-compose.yml     # Local development
 ├── deploy.sh              # GKE deployment script
-└── requirements.txt       # Python dependencies
+├── requirements.txt       # Python dependencies
+└── TROUBLESHOOTING.md     # Common issues and solutions
 ```
 
 ### Adding New Sources
@@ -315,6 +328,33 @@ book-scraper/
 - **Vertical**: Resource requests/limits
 - **Geographic**: Multi-region deployment
 
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Docker Build Failures**: Use `Dockerfile.simple` to avoid dependency issues
+2. **Package Installation Errors**: Check package names for your base image
+3. **Permission Issues**: Ensure containers run as non-root user
+4. **Memory Constraints**: Increase Docker memory limits
+
+### Quick Fixes
+
+```bash
+# Use simple Dockerfile
+docker build -f Dockerfile.simple -t book-scraper:latest .
+
+# Clean Docker environment
+docker system prune -a
+docker-compose up --build
+
+# Check logs
+docker-compose logs book-scraper
+```
+
+### Detailed Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for comprehensive solutions to common issues.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -323,6 +363,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - **Issues**: GitHub Issues
 - **Documentation**: API docs at `/docs`
+- **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **Community**: Discord/Slack (if applicable)
 
 ## 🔮 Roadmap

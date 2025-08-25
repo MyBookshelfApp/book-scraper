@@ -1,5 +1,5 @@
-# Multi-stage Dockerfile for Book Scraper service
-FROM python:3.11-slim as builder
+# Alternative Dockerfile using python:3.11-bullseye for better compatibility
+FROM python:3.11-bullseye as builder
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y \
@@ -19,14 +19,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
-FROM python:3.11-slim
+FROM python:3.11-bullseye
 
-# Install runtime dependencies with correct package names
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libxml2 \
     libxslt1.1 \
-    libffi8 \
-    libssl3 \
+    libffi7 \
+    libssl1.1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

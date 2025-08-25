@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   book-scraper:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.simple  # Use simple Dockerfile to avoid dependency issues
     ports:
       - "8000:8000"
       - "9090:9090"
