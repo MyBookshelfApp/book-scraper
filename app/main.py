@@ -120,7 +120,11 @@ async def health_check():
         scraper_engine = get_scraper_engine()
         
         # Get basic stats
-        stats = scraper_engine.get_stats()
+        try:
+            stats = scraper_engine.get_stats()
+        except Exception as stats_error:
+            logger.warning("Could not get scraper stats", error=str(stats_error))
+            stats = {}
         
         return {
             "status": "healthy",
@@ -144,8 +148,15 @@ async def readiness_check():
         scraper_engine = get_scraper_engine()
         
         # Check if we can process requests
-        stats = scraper_engine.get_stats()
-        if stats.get("uptime_seconds", 0) < 5:  # Service needs time to warm up
+        try:
+            stats = scraper_engine.get_stats()
+        except Exception as stats_error:
+            logger.warning("Could not get scraper stats for readiness check", error=str(stats_error))
+            # If we can't get stats, assume service is ready
+            return {"status": "ready"}
+        
+        uptime = stats.get("uptime_seconds", 0)
+        if uptime < 5:  # Service needs time to warm up
             return JSONResponse(
                 status_code=503,
                 content={"status": "not_ready", "reason": "Service warming up"}

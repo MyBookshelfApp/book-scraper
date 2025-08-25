@@ -209,11 +209,13 @@ class MetricsCollector:
                 # This would need to be tracked per domain in the actual implementation
                 pass
         
-        # Update HTTP client stats
+        # Update HTTP client stats (handle gracefully)
         http_stats = stats.get('http_client_stats', {})
-        if 'httpx_connections' in http_stats:
-            # Could track connection pool metrics here
-            pass
+        if http_stats:
+            # Log HTTP client availability
+            if 'httpx_available' in http_stats:
+                # Could track connection pool metrics here if available
+                pass
     
     def collect_resource_metrics(self):
         """Collect system resource metrics"""

@@ -223,9 +223,29 @@ class HTTPClient:
     
     def get_session_stats(self) -> Dict[str, Any]:
         """Get current session statistics"""
-        if self._httpx_client:
-            return {
-                "httpx_connections": self._httpx_client._transport._pool._num_connections,
-                "httpx_available": self._httpx_client._transport._pool._num_available_connections,
-            }
-        return {} 
+        stats = {
+            "httpx_available": True,
+            "aiohttp_available": self._aiohttp_session is not None
+        }
+        
+        # Try to get connection pool info if available
+        if self._httpx_client and hasattr(self._httpx_client, '_transport'):
+            try:
+                # Check if we can access connection pool info
+                if hasattr(self._httpx_client._transport, '_pool'):
+                    pool = self._httpx_client._transport._pool
+                    if hasattr(pool, '_num_connections'):
+                        stats["httpx_connections"] = pool._num_connections
+                    if hasattr(pool, '_num_available_connections'):
+                        stats["httpx_available_connections"] = pool._num_available_connections
+                    else:
+                        stats["httpx_connections"] = "unknown"
+                        stats["httpx_available_connections"] = "unknown"
+                else:
+                    stats["httpx_connections"] = "no_pool"
+                    stats["httpx_available_connections"] = "no_pool"
+            except Exception:
+                stats["httpx_connections"] = "error"
+                stats["httpx_available_connections"] = "error"
+        
+        return stats 
