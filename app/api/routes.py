@@ -9,7 +9,7 @@ from ..core.scraper_engine import ScraperEngine, ScrapingTask
 from ..models.book import Book, BookSource
 from ..models.scraping_job import ScrapingJob, JobType, JobStatus
 from ..models.scraping_result import ScrapingResult
-from ..main import get_scraper_engine
+from ..dependencies import get_scraper_engine
 
 router = APIRouter()
 

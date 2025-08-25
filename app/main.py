@@ -19,6 +19,7 @@ from .models.scraping_job import ScrapingJob, JobType, JobStatus
 from .models.scraping_result import ScrapingResult
 from .api.routes import router as api_router
 from .monitoring.metrics import setup_metrics, get_metrics
+from .dependencies import set_scraper_engine
 
 
 # Configure structured logging
@@ -43,21 +44,18 @@ structlog.configure(
 logger = structlog.get_logger()
 
 
-# Global scraper engine instance
-scraper_engine: ScraperEngine = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global scraper_engine
-    
     # Startup
     logger.info("Starting Book Scraper service", version=settings.app_version)
     
     # Initialize scraper engine
     scraper_engine = ScraperEngine()
     await scraper_engine.__aenter__()
+    
+    # Set the global instance
+    set_scraper_engine(scraper_engine)
     
     # Setup metrics
     if settings.enable_metrics:
@@ -116,9 +114,10 @@ async def root():
 async def health_check():
     """Health check endpoint for Kubernetes"""
     try:
+        from .dependencies import get_scraper_engine
+        
         # Check if scraper engine is available
-        if scraper_engine is None:
-            raise HTTPException(status_code=503, detail="Scraper engine not initialized")
+        scraper_engine = get_scraper_engine()
         
         # Get basic stats
         stats = scraper_engine.get_stats()
@@ -140,11 +139,9 @@ async def health_check():
 async def readiness_check():
     """Readiness check endpoint for Kubernetes"""
     try:
-        if scraper_engine is None:
-            return JSONResponse(
-                status_code=503,
-                content={"status": "not_ready", "reason": "Scraper engine not initialized"}
-            )
+        from .dependencies import get_scraper_engine
+        
+        scraper_engine = get_scraper_engine()
         
         # Check if we can process requests
         stats = scraper_engine.get_stats()
@@ -190,13 +187,6 @@ async def service_info():
             "database_type": settings.database_type
         }
     }
-
-
-# Dependency to get scraper engine
-def get_scraper_engine() -> ScraperEngine:
-    if scraper_engine is None:
-        raise HTTPException(status_code=503, detail="Scraper engine not available")
-    return scraper_engine
 
 
 if __name__ == "__main__":
